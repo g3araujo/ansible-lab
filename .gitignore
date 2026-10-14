@@ -1,0 +1,31 @@
+# Ansible
+*.retry
+
+# Python
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/
+
+# JetBrains
+.idea/
+
+# Terraform
+.terraform/
+*.tfstate*
+crash.log
+
+# Logs
+*.log
+
+# Arquivos temporários
+*.tmp
+*.bak
+*.swp
+
+# Oracle
+*.dmp
+
+# Linux
+.DS_Store
