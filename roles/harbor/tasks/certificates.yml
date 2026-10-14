@@ -1,0 +1,55 @@
+---
+###############################################################################
+# Harbor Certificates
+###############################################################################
+
+- name: Verificar se TLS está habilitado
+  ansible.builtin.debug:
+    msg: "TLS habilitado: {{ harbor_tls_enabled }}"
+
+- name: Criar diretório de certificados
+  ansible.builtin.file:
+    path: "{{ harbor_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: harbor_tls_enabled | bool
+
+- name: Verificar certificado
+  ansible.builtin.stat:
+    path: "{{ harbor_tls_crt }}"
+  register: harbor_crt
+  when: harbor_tls_enabled | bool
+
+- name: Verificar chave privada
+  ansible.builtin.stat:
+    path: "{{ harbor_tls_key }}"
+  register: harbor_key
+  when: harbor_tls_enabled | bool
+
+- name: Validar certificado
+  ansible.builtin.assert:
+    that:
+      - harbor_crt.stat.exists
+      - harbor_key.stat.exists
+    fail_msg: "Certificado TLS do Harbor não encontrado."
+  when: harbor_tls_enabled | bool
+
+- name: Exibir informações do certificado
+  ansible.builtin.command:
+    cmd: >
+      openssl x509
+      -in {{ harbor_tls_crt }}
+      -noout
+      -subject
+      -issuer
+      -dates
+  register: harbor_certificate
+  changed_when: false
+  when: harbor_tls_enabled | bool
+
+- name: Exibir certificado
+  ansible.builtin.debug:
+    var: harbor_certificate.stdout_lines
+  when: harbor_tls_enabled | bool

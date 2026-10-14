@@ -1,0 +1,88 @@
+---
+###############################################################################
+# Harbor Prerequisites
+###############################################################################
+
+- name: Validar sistema operacional
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == "Debian"
+    fail_msg: "Harbor suporta apenas hosts Debian/Ubuntu."
+
+- name: Validar kubectl
+  ansible.builtin.command:
+    cmd: kubectl version --client
+  register: kubectl_version
+  changed_when: false
+
+- name: Exibir versão do kubectl
+  ansible.builtin.debug:
+    var: kubectl_version.stdout_lines
+
+- name: Validar Helm
+  ansible.builtin.command:
+    cmd: helm version --short
+  register: helm_version
+  changed_when: false
+
+- name: Exibir versão do Helm
+  ansible.builtin.debug:
+    var: helm_version.stdout_lines
+
+- name: Verificar acesso ao cluster
+  ansible.builtin.command:
+    cmd: kubectl cluster-info
+  register: cluster_info
+  changed_when: false
+
+- name: Exibir informações do cluster
+  ansible.builtin.debug:
+    var: cluster_info.stdout_lines
+
+- name: Validar nós do cluster
+  ansible.builtin.command:
+    cmd: kubectl get nodes
+  register: cluster_nodes
+  changed_when: false
+
+- name: Exibir nós
+  ansible.builtin.debug:
+    var: cluster_nodes.stdout_lines
+
+- name: Validar namespace Harbor
+  ansible.builtin.command:
+    cmd: kubectl get namespace {{ harbor_namespace }}
+  register: harbor_namespace
+  changed_when: false
+  failed_when: false
+
+- name: Exibir namespace
+  ansible.builtin.debug:
+    var: harbor_namespace.stdout_lines
+
+- name: Validar diretório de persistência
+  ansible.builtin.stat:
+    path: "{{ harbor_data_dir }}"
+  register: harbor_storage
+
+- name: Falhar caso diretório não exista
+  ansible.builtin.fail:
+    msg: "Diretório {{ harbor_data_dir }} não encontrado."
+  when: not harbor_storage.stat.exists
+
+- name: Validar conectividade HTTPS
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}"
+    method: GET
+    validate_certs: false
+    timeout: 5
+    status_code:
+      - 200
+      - 302
+      - 401
+  register: harbor_https
+  failed_when: false
+
+- name: Exibir status HTTPS
+  ansible.builtin.debug:
+    msg: "Status HTTP: {{ harbor_https.status | default('indisponível') }}"

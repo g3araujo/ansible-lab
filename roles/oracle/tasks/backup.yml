@@ -1,0 +1,104 @@
+---
+###############################################################################
+# Oracle Backup
+###############################################################################
+
+- name: Verificar se backup está habilitado
+  ansible.builtin.debug:
+    msg: "Backup Oracle habilitado."
+  when: oracle.backup.enabled | bool
+
+###############################################################################
+# Criar diretório de backup
+###############################################################################
+
+- name: Criar diretório de backup
+  ansible.builtin.file:
+    path: "{{ oracle.backup_dir }}"
+    state: directory
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0755"
+  when: oracle.backup.enabled | bool
+
+###############################################################################
+# Executar RMAN
+###############################################################################
+
+- name: Executar backup RMAN
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+
+    rman target / <<EOF
+    CONFIGURE RETENTION POLICY TO RECOVERY WINDOW OF {{ oracle.backup.retention_days }} DAYS;
+
+    BACKUP AS COMPRESSED BACKUPSET DATABASE
+      FORMAT '{{ oracle.backup_dir }}/database_%d_%T_%U.bkp';
+
+    BACKUP CURRENT CONTROLFILE
+      FORMAT '{{ oracle.backup_dir }}/controlfile_%d_%T_%U.ctl';
+
+    BACKUP SPFILE
+      FORMAT '{{ oracle.backup_dir }}/spfile_%d_%T_%U.bkp';
+
+    SQL 'ALTER SYSTEM ARCHIVE LOG CURRENT';
+
+    BACKUP ARCHIVELOG ALL
+      FORMAT '{{ oracle.backup_dir }}/arch_%d_%T_%U.arc'
+      DELETE INPUT;
+
+    DELETE NOPROMPT OBSOLETE;
+
+    EXIT;
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: oracle_backup
+  changed_when: true
+  when: oracle.backup.enabled | bool
+
+###############################################################################
+# Exibir resultado
+###############################################################################
+
+- name: Resultado do backup
+  ansible.builtin.debug:
+    var: oracle_backup.stdout_lines
+  when: oracle.backup.enabled | bool
+
+###############################################################################
+# Listar backups
+###############################################################################
+
+- name: Listar arquivos de backup
+  ansible.builtin.find:
+    paths: "{{ oracle.backup_dir }}"
+    recurse: false
+  register: backup_files
+  when: oracle.backup.enabled | bool
+
+- name: Exibir backups encontrados
+  ansible.builtin.debug:
+    msg:
+      - "{{ item.path }}"
+      - "{{ (item.size / 1024 / 1024) | round(1) }} MB"
+  loop: "{{ backup_files.files }}"
+  when: oracle.backup.enabled | bool
+
+###############################################################################
+# Estatísticas
+###############################################################################
+
+- name: Verificar utilização do diretório
+  ansible.builtin.command:
+    cmd: df -h "{{ oracle.backup_dir }}"
+  register: backup_disk
+  changed_when: false
+  when: oracle.backup.enabled | bool
+
+- name: Exibir utilização
+  ansible.builtin.debug:
+    var: backup_disk.stdout_lines
+  when: oracle.backup.enabled | bool

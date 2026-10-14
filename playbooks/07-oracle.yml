@@ -1,0 +1,111 @@
+---
+- name: Instalar Oracle Database
+  hosts: k3s-lab-02
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+
+    - name: Validar sistema operacional
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Oracle é suportado apenas em Ubuntu/Debian."
+
+    - name: Validar host Oracle
+      ansible.builtin.assert:
+        that:
+          - oracle.enabled | bool
+        fail_msg: "Oracle não está habilitado para este host."
+
+    - name: Validar diretório Oracle
+      ansible.builtin.stat:
+        path: "{{ oracle.data_dir }}"
+      register: oracle_dir
+
+    - name: Falhar caso diretório não exista
+      ansible.builtin.fail:
+        msg: >
+          O diretório {{ oracle.data_dir }} não existe.
+          Execute primeiro o playbook 05-storage.yml.
+      when: not oracle_dir.stat.exists
+
+    - name: Exibir configuração
+      ansible.builtin.debug:
+        msg:
+          - "Host..............: {{ inventory_hostname }}"
+          - "Oracle............: {{ oracle.version }}"
+          - "SID...............: {{ oracle.sid }}"
+          - "PDB...............: {{ oracle.pdb }}"
+          - "Charset...........: {{ oracle.charset }}"
+          - "Data..............: {{ oracle.data_dir }}"
+          - "FRA...............: {{ oracle.fra_dir }}"
+          - "Backup............: {{ oracle.backup_dir }}"
+
+  roles:
+    - oracle
+
+  post_tasks:
+
+    - name: Verificar listener
+      ansible.builtin.command: lsnrctl status
+      register: listener
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir listener
+      ansible.builtin.debug:
+        var: listener.stdout_lines
+
+    - name: Verificar instância
+      ansible.builtin.shell: |
+        source /home/oracle/.bash_profile
+        sqlplus -s / as sysdba <<EOF
+        set pages 0 feedback off verify off heading off echo off
+        select status from v\$instance;
+        exit
+        EOF
+      become_user: oracle
+      register: instance_status
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir status da instância
+      ansible.builtin.debug:
+        var: instance_status.stdout_lines
+
+    - name: Verificar tablespaces
+      ansible.builtin.shell: |
+        source /home/oracle/.bash_profile
+        sqlplus -s / as sysdba <<EOF
+        set lines 200
+        col tablespace_name format a30
+        select tablespace_name,status from dba_tablespaces;
+        exit
+        EOF
+      become_user: oracle
+      register: tablespaces
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir tablespaces
+      ansible.builtin.debug:
+        var: tablespaces.stdout_lines
+
+    - name: Verificar uso dos datafiles
+      ansible.builtin.shell: |
+        source /home/oracle/.bash_profile
+        sqlplus -s / as sysdba <<EOF
+        set lines 200
+        col file_name format a70
+        select file_name, bytes/1024/1024 MB from dba_data_files;
+        exit
+        EOF
+      become_user: oracle
+      register: datafiles
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir datafiles
+      ansible.builtin.debug:
+        var: datafiles.stdout_lines

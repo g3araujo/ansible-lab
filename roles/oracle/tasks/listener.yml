@@ -1,0 +1,93 @@
+---
+###############################################################################
+# Oracle Listener
+###############################################################################
+
+- name: Exibir configuração do Listener
+  ansible.builtin.debug:
+    msg:
+      - "Listener : {{ oracle.listener.name }}"
+      - "Port     : {{ oracle.listener.port }}"
+
+###############################################################################
+# Validar listener.ora
+###############################################################################
+
+- name: Verificar listener.ora
+  ansible.builtin.stat:
+    path: "{{ oracle.home }}/network/admin/listener.ora"
+  register: listener_file
+
+- name: Falhar caso listener.ora não exista
+  ansible.builtin.fail:
+    msg: "listener.ora não encontrado."
+  when: not listener_file.stat.exists
+
+###############################################################################
+# Verificar status
+###############################################################################
+
+- name: Consultar Listener
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+    lsnrctl status {{ oracle.listener.name }}
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: listener_status
+  changed_when: false
+  failed_when: false
+
+- name: Exibir status
+  ansible.builtin.debug:
+    var: listener_status.stdout_lines
+
+###############################################################################
+# Iniciar Listener
+###############################################################################
+
+- name: Iniciar Listener
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+    lsnrctl start {{ oracle.listener.name }}
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: listener_start
+  changed_when: "'The command completed successfully' in listener_start.stdout"
+  failed_when: false
+  when: listener_status.rc != 0
+  notify:
+    - Reload Oracle Listener
+
+###############################################################################
+# Validar Porta
+###############################################################################
+
+- name: Verificar porta do Listener
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ oracle.listener.port }}"
+    timeout: 20
+
+###############################################################################
+# Verificar Services
+###############################################################################
+
+- name: Consultar serviços registrados
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+    lsnrctl services {{ oracle.listener.name }}
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: listener_services
+  changed_when: false
+  failed_when: false
+
+- name: Exibir serviços
+  ansible.builtin.debug:
+    var: listener_services.stdout_lines

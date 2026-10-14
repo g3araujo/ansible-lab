@@ -1,0 +1,121 @@
+---
+###############################################################################
+# Oracle Listener
+###############################################################################
+
+- name: Restart Oracle Listener
+  ansible.builtin.service:
+    name: oracle-listener
+    state: restarted
+  failed_when: false
+
+###############################################################################
+# Oracle Database
+###############################################################################
+
+- name: Restart Oracle Database
+  ansible.builtin.service:
+    name: oracle-database
+    state: restarted
+  failed_when: false
+
+###############################################################################
+# Reload Listener
+###############################################################################
+
+- name: Reload Oracle Listener
+  ansible.builtin.shell: |
+    source /home/oracle/.bash_profile
+    lsnrctl reload
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: oracle
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# Start Listener
+###############################################################################
+
+- name: Start Oracle Listener
+  ansible.builtin.shell: |
+    source /home/oracle/.bash_profile
+    lsnrctl start
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: oracle
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# Stop Listener
+###############################################################################
+
+- name: Stop Oracle Listener
+  ansible.builtin.shell: |
+    source /home/oracle/.bash_profile
+    lsnrctl stop
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: oracle
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# Start Database
+###############################################################################
+
+- name: Start Oracle Instance
+  ansible.builtin.shell: |
+    source /home/oracle/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    startup;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: oracle
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# Shutdown Database
+###############################################################################
+
+- name: Shutdown Oracle Instance
+  ansible.builtin.shell: |
+    source /home/oracle/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    shutdown immediate;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: oracle
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# Reload Oracle Environment
+###############################################################################
+
+- name: Reload Oracle Environment
+  ansible.builtin.debug:
+    msg: "Oracle configuration updated."
+
+###############################################################################
+# Reboot Host
+###############################################################################
+
+- name: Reboot Oracle Host
+  ansible.builtin.reboot:
+    msg: "Oracle host reboot requested by Ansible"
+    reboot_timeout: 1800
+  when: common_auto_reboot | default(false)

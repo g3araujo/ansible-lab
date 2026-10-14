@@ -1,0 +1,73 @@
+---
+- name: Ler token do control-plane
+  hosts: k3s_control_plane
+  become: true
+  gather_facts: false
+
+  tasks:
+
+    - name: Ler node-token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_raw
+
+    - name: Guardar token
+      ansible.builtin.set_fact:
+        k3s_node_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+
+- name: Instalar workers k3s
+  hosts: k3s_workers
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_server_url: "https://{{ hostvars[groups['k3s_control_plane'][0]].ansible_host }}:6443"
+
+  tasks:
+
+    - name: Verificar instalação do k3s-agent
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s-agent
+      register: k3s_agent_binary
+
+    - name: Baixar instalador do K3s
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/install-k3s.sh
+        mode: "0755"
+      when: not k3s_agent_binary.stat.exists
+
+    - name: Instalar k3s agent
+      ansible.builtin.command:
+        cmd: /tmp/install-k3s.sh
+        creates: /usr/local/bin/k3s-agent
+      environment:
+        INSTALL_K3S_VERSION: "v1.36.3+k3s1"
+        K3S_URL: "{{ k3s_server_url }}"
+        K3S_TOKEN: "{{ hostvars[groups['k3s_control_plane'][0]].k3s_node_token }}"
+        INSTALL_K3S_SKIP_ENABLE: "true"
+        INSTALL_K3S_SKIP_START: "true"
+        INSTALL_K3S_EXEC: >-
+          agent
+          --node-name {{ inventory_hostname }}
+          --node-ip {{ ansible_host }}
+      register: k3s_install
+      changed_when: k3s_install.rc == 0
+      when: not k3s_agent_binary.stat.exists
+
+    - name: Garantir k3s-agent parado
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: false
+        state: stopped
+
+    - name: Exibir versão instalada
+      ansible.builtin.command:
+        cmd: k3s --version
+      register: k3s_version
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir versão do K3s
+      ansible.builtin.debug:
+        var: k3s_version.stdout_lines

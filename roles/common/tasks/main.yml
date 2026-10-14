@@ -1,0 +1,44 @@
+---
+###############################################################################
+# Common Role
+###############################################################################
+
+- name: Atualizar cache do APT
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Instalar pacotes básicos
+  ansible.builtin.apt:
+    name:
+      - bash-completion
+      - ca-certificates
+      - curl
+      - git
+      - htop
+      - jq
+      - net-tools
+      - rsync
+      - unzip
+      - vim
+      - wget
+    state: present
+
+- name: Configurar timezone
+  community.general.timezone:
+    name: "{{ timezone | default('America/Sao_Paulo') }}"
+
+- name: Garantir diretório .ssh
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+
+- name: Exibir informações do host
+  ansible.builtin.debug:
+    msg:
+      - "Host: {{ inventory_hostname }}"
+      - "Sistema: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Kernel: {{ ansible_kernel }}"

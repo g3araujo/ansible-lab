@@ -1,0 +1,167 @@
+---
+###############################################################################
+# Oracle Software Installation
+###############################################################################
+
+- name: Verificar modo de instalação
+  ansible.builtin.debug:
+    msg:
+      - "Modo.............: {{ oracle.install_mode }}"
+      - "Versão...........: {{ oracle.version }}"
+      - "Edition..........: {{ oracle.edition }}"
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Pré-requisitos
+###############################################################################
+
+- name: Instalar dependências Oracle
+  ansible.builtin.apt:
+    name:
+      - unzip
+      - zip
+      - bc
+      - binutils
+      - gcc
+      - g++
+      - make
+      - libc6
+      - libc6-dev
+      - libaio1t64
+      - libaio-dev
+      - libgcc-s1
+      - libstdc++6
+      - libnsl-dev
+      - libx11-6
+      - libxrender1
+      - libxtst6
+      - libxi6
+      - ksh
+      - rlwrap
+    state: present
+    update_cache: true
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Oracle Inventory
+###############################################################################
+
+- name: Criar oraInst.loc
+  ansible.builtin.copy:
+    dest: /etc/oraInst.loc
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      inventory_loc={{ oracle.inventory }}
+      inst_group={{ oracle.group }}
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Diretório de instalação
+###############################################################################
+
+- name: Criar diretório do instalador
+  ansible.builtin.file:
+    path: /tmp/oracle-install
+    state: directory
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0755"
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Copiar mídia
+###############################################################################
+
+- name: Verificar mídia Oracle
+  ansible.builtin.stat:
+    path: "{{ oracle.media }}"
+  register: oracle_media
+  when: oracle.install_mode == "install"
+
+- name: Falhar caso mídia não exista
+  ansible.builtin.fail:
+    msg: "Arquivo {{ oracle.media }} não encontrado."
+  when:
+    - oracle.install_mode == "install"
+    - not oracle_media.stat.exists
+
+###############################################################################
+# Descompactar mídia
+###############################################################################
+
+- name: Extrair Oracle
+  ansible.builtin.unarchive:
+    src: "{{ oracle.media }}"
+    dest: /tmp/oracle-install
+    remote_src: true
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Response File
+###############################################################################
+
+- name: Gerar response file
+  ansible.builtin.template:
+    src: db_install.rsp.j2
+    dest: /tmp/oracle-install/db_install.rsp
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0644"
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Executar Installer
+###############################################################################
+
+- name: Instalar Oracle
+  ansible.builtin.shell: |
+    ./runInstaller \
+      -silent \
+      -ignorePrereqFailure \
+      -waitforcompletion \
+      -responseFile /tmp/oracle-install/db_install.rsp
+  args:
+    chdir: /tmp/oracle-install
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: oracle_install
+  changed_when: true
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Root Scripts
+###############################################################################
+
+- name: Executar orainstRoot.sh
+  ansible.builtin.command:
+    cmd: "{{ oracle.inventory }}/orainstRoot.sh"
+    creates: /etc/oraInst.loc
+  become: true
+  when: oracle.install_mode == "install"
+
+- name: Executar root.sh
+  ansible.builtin.command:
+    cmd: "{{ oracle.home }}/root.sh"
+    creates: /etc/oratab
+  become: true
+  when: oracle.install_mode == "install"
+
+###############################################################################
+# Validação
+###############################################################################
+
+- name: Verificar sqlplus
+  ansible.builtin.stat:
+    path: "{{ oracle.home }}/bin/sqlplus"
+  register: sqlplus
+
+- name: Validar instalação
+  ansible.builtin.assert:
+    that:
+      - sqlplus.stat.exists
+    fail_msg: "Oracle não foi instalado corretamente."

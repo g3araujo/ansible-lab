@@ -1,0 +1,183 @@
+---
+###############################################################################
+# Oracle Database
+###############################################################################
+
+- name: Verificar modo de operação
+  ansible.builtin.debug:
+    msg:
+      - "Oracle Mode : {{ oracle.install_mode }}"
+      - "SID         : {{ oracle.sid }}"
+      - "PDB         : {{ oracle.pdb }}"
+
+###############################################################################
+# Verificar ORACLE_HOME
+###############################################################################
+
+- name: Validar ORACLE_HOME
+  ansible.builtin.stat:
+    path: "{{ oracle.home }}"
+  register: oracle_home
+
+- name: Falhar caso ORACLE_HOME não exista
+  ansible.builtin.fail:
+    msg: "ORACLE_HOME {{ oracle.home }} não encontrado."
+  when:
+    - oracle.install_mode != "install"
+    - not oracle_home.stat.exists
+
+###############################################################################
+# Verificar Listener
+###############################################################################
+
+- name: Validar Listener
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+    lsnrctl status
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: listener_status
+  changed_when: false
+  failed_when: false
+
+- name: Iniciar Listener
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+    lsnrctl start
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: listener_start
+  changed_when: "'The command completed successfully' in listener_start.stdout"
+  failed_when: false
+  when: listener_status.rc != 0
+
+###############################################################################
+# Verificar Instância
+###############################################################################
+
+- name: Consultar status da instância
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    set heading off feedback off verify off pages 0
+    select status from v\$instance;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: instance_status
+  changed_when: false
+  failed_when: false
+
+- name: Exibir status
+  ansible.builtin.debug:
+    var: instance_status.stdout_lines
+
+###############################################################################
+# Inicializar Instância
+###############################################################################
+
+- name: Startup Oracle
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    startup;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: startup_result
+  changed_when: "'ORACLE instance started' in startup_result.stdout"
+  failed_when: false
+  when:
+    - oracle.install_mode != "restore"
+    - instance_status.stdout is not search("OPEN")
+
+###############################################################################
+# Validar PDB
+###############################################################################
+
+- name: Consultar PDBs
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    set lines 200
+    col name format a30
+    select name, open_mode from v\$pdbs;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: pdbs
+  changed_when: false
+  failed_when: false
+
+- name: Exibir PDBs
+  ansible.builtin.debug:
+    var: pdbs.stdout_lines
+
+###############################################################################
+# Tablespaces
+###############################################################################
+
+- name: Consultar Tablespaces
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    set lines 200
+    col tablespace_name format a30
+    select tablespace_name,status
+      from dba_tablespaces
+      order by tablespace_name;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: tablespaces
+  changed_when: false
+  failed_when: false
+
+- name: Exibir Tablespaces
+  ansible.builtin.debug:
+    var: tablespaces.stdout_lines
+
+###############################################################################
+# Database Version
+###############################################################################
+
+- name: Consultar versão
+  ansible.builtin.shell: |
+    source /home/{{ oracle.user }}/.bash_profile
+
+    sqlplus -s / as sysdba <<EOF
+    set pages 0 feedback off
+    select banner_full from v\$version;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: version
+  changed_when: false
+  failed_when: false
+
+- name: Exibir versão
+  ansible.builtin.debug:
+    var: version.stdout_lines

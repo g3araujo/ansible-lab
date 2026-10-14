@@ -1,0 +1,13 @@
+---
+- name: Conectar workers ao cluster
+  hosts: k3s_workers
+  become: true
+  gather_facts: false
+  serial: 1
+
+  tasks:
+    - name: Iniciar k3s-agent sem habilitar no boot
+      ansible.builtin.systemd_service:
+        name: k3s-agent
+        state: started
+        enabled: false

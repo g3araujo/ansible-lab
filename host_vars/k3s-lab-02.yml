@@ -1,0 +1,5 @@
+oracle_enabled: true
+
+oracle_disk: /dev/sdb
+
+oracle_mount: /u02

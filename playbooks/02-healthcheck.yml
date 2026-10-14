@@ -1,0 +1,118 @@
+---
+- name: Health Check do laboratório
+  hosts: all
+  gather_facts: true
+
+  tasks:
+
+    - name: Informações gerais
+      ansible.builtin.debug:
+        msg:
+          - "Host........: {{ inventory_hostname }}"
+          - "Sistema.....: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel......: {{ ansible_kernel }}"
+          - "CPU.........: {{ ansible_processor_vcpus }} vCPU"
+          - "RAM.........: {{ ansible_memtotal_mb }} MB"
+          - "IPv4........: {{ ansible_default_ipv4.address }}"
+          - "Gateway.....: {{ ansible_default_ipv4.gateway }}"
+
+    - name: Coletar informações dos serviços
+      ansible.builtin.service_facts:
+
+    - name: Uptime
+      ansible.builtin.command:
+        cmd: uptime
+      register: uptime_output
+      changed_when: false
+
+    - name: Exibir uptime
+      ansible.builtin.debug:
+        var: uptime_output.stdout_lines
+
+    - name: Memória
+      ansible.builtin.command:
+        cmd: free -h
+      register: memory_output
+      changed_when: false
+
+    - name: Exibir memória
+      ansible.builtin.debug:
+        var: memory_output.stdout_lines
+
+    - name: Filesystems
+      ansible.builtin.command:
+        cmd: df -hT
+      register: disk_output
+      changed_when: false
+
+    - name: Exibir filesystems
+      ansible.builtin.debug:
+        var: disk_output.stdout_lines
+
+    - name: Discos
+      ansible.builtin.command:
+        cmd: lsblk -f
+      register: lsblk_output
+      changed_when: false
+
+    - name: Exibir discos
+      ansible.builtin.debug:
+        var: lsblk_output.stdout_lines
+
+    - name: Interfaces de rede
+      ansible.builtin.command:
+        cmd: ip -br addr
+      register: ip_output
+      changed_when: false
+
+    - name: Exibir interfaces
+      ansible.builtin.debug:
+        var: ip_output.stdout_lines
+
+    - name: Timezone
+      ansible.builtin.command:
+        cmd: timedatectl
+      register: timedate_output
+      changed_when: false
+
+    - name: Exibir timezone
+      ansible.builtin.debug:
+        var: timedate_output.stdout_lines
+
+    - name: Exibir estado do SSH
+      ansible.builtin.debug:
+        msg: >-
+          SSH: {{
+            ansible_facts.services['ssh.service'].state
+            | default('não encontrado')
+          }}
+
+    - name: Exibir estado do Chrony
+      ansible.builtin.debug:
+        msg: >-
+          Chrony: {{
+            ansible_facts.services['chrony.service'].state
+            | default('não encontrado')
+          }}
+
+    - name: Swap
+      ansible.builtin.command:
+        cmd: swapon --show
+      register: swap_output
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir swap
+      ansible.builtin.debug:
+        var: swap_output.stdout_lines
+
+    - name: SMART (quando disponível)
+      ansible.builtin.command:
+        cmd: smartctl --scan
+      register: smart_output
+      changed_when: false
+      failed_when: false
+
+    - name: Exibir SMART
+      ansible.builtin.debug:
+        var: smart_output.stdout_lines

@@ -1,0 +1,117 @@
+---
+###############################################################################
+# Oracle Directories
+###############################################################################
+
+- name: Exibir diretórios Oracle
+  ansible.builtin.debug:
+    msg:
+      - "ORACLE_BASE : {{ oracle.base }}"
+      - "ORACLE_HOME : {{ oracle.home }}"
+      - "Inventory   : {{ oracle.inventory }}"
+      - "Data        : {{ oracle.data_dir }}"
+      - "FRA         : {{ oracle.fra_dir }}"
+      - "Backup      : {{ oracle.backup_dir }}"
+
+###############################################################################
+# Grupo Oracle
+###############################################################################
+
+- name: Garantir grupo principal
+  ansible.builtin.group:
+    name: "{{ oracle.group }}"
+    state: present
+
+- name: Garantir grupo DBA
+  ansible.builtin.group:
+    name: "{{ oracle.dba_group }}"
+    state: present
+
+###############################################################################
+# Usuário Oracle
+###############################################################################
+
+- name: Garantir usuário Oracle
+  ansible.builtin.user:
+    name: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    groups:
+      - "{{ oracle.dba_group }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+###############################################################################
+# Estrutura principal
+###############################################################################
+
+- name: Criar diretórios Oracle
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0755"
+  loop:
+    - "{{ oracle.base }}"
+    - "{{ oracle.home }}"
+    - "{{ oracle.inventory }}"
+    - "{{ oracle.data_dir }}"
+    - "{{ oracle.fra_dir }}"
+    - "{{ oracle.backup_dir }}"
+
+###############################################################################
+# Subdiretórios
+###############################################################################
+
+- name: Criar estrutura do banco
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0755"
+  loop:
+    - "{{ oracle.data_dir }}/{{ oracle.sid }}"
+    - "{{ oracle.fra_dir }}/{{ oracle.sid }}"
+    - "{{ oracle.backup_dir }}/rman"
+    - "{{ oracle.backup_dir }}/datapump"
+    - "{{ oracle.backup_dir }}/logs"
+
+###############################################################################
+# Permissões
+###############################################################################
+
+- name: Garantir ownership
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    recurse: true
+  loop:
+    - "{{ oracle.base }}"
+    - "{{ oracle.inventory }}"
+    - "{{ oracle.data_dir }}"
+    - "{{ oracle.fra_dir }}"
+    - "{{ oracle.backup_dir }}"
+
+###############################################################################
+# Validação
+###############################################################################
+
+- name: Validar diretórios
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ oracle.base }}"
+    - "{{ oracle.home }}"
+    - "{{ oracle.inventory }}"
+    - "{{ oracle.data_dir }}"
+    - "{{ oracle.fra_dir }}"
+    - "{{ oracle.backup_dir }}"
+  register: oracle_dirs
+
+- name: Exibir resultado
+  ansible.builtin.debug:
+    var: oracle_dirs.results

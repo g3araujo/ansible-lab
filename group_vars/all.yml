@@ -1,0 +1,220 @@
+---
+###############################################################################
+# Laboratório
+###############################################################################
+
+lab:
+  name: Matera Lab
+  domain: lab
+  timezone: America/Sao_Paulo
+
+###############################################################################
+# Usuário padrão
+###############################################################################
+
+ansible_user: garaujo
+ansible_python_interpreter: /usr/bin/python3
+
+###############################################################################
+# Rede
+###############################################################################
+
+network:
+  gateway: 192.168.0.1
+
+  dns:
+    - 192.168.0.1
+
+###############################################################################
+# Diretórios
+###############################################################################
+
+paths:
+  root: /opt/lab
+  manifests: /opt/lab/manifests
+  backups: /opt/lab/backups
+  downloads: /opt/lab/downloads
+  scripts: /opt/lab/scripts
+  logs: /opt/lab/logs
+  tmp: /opt/lab/tmp
+
+###############################################################################
+# Pacotes
+###############################################################################
+
+packages:
+  common:
+    - bash-completion
+    - ca-certificates
+    - chrony
+    - curl
+    - dnsutils
+    - git
+    - htop
+    - iftop
+    - iotop
+    - jq
+    - nano
+    - net-tools
+    - nfs-common
+    - nvme-cli
+    - open-iscsi
+    - openssh-server
+    - rsync
+    - smartmontools
+    - software-properties-common
+    - tree
+    - unzip
+    - vim
+    - wget
+    - zip
+
+###############################################################################
+# Serviços
+###############################################################################
+
+services:
+  enabled:
+    - ssh
+    - chrony
+
+###############################################################################
+# Kernel
+###############################################################################
+
+kernel:
+  modules:
+    - overlay
+    - br_netfilter
+
+  sysctl:
+    vm.max_map_count: "262144"
+    fs.inotify.max_user_watches: "524288"
+    fs.inotify.max_user_instances: "512"
+    net.ipv4.ip_forward: "1"
+    net.bridge.bridge-nf-call-iptables: "1"
+    net.bridge.bridge-nf-call-ip6tables: "1"
+
+###############################################################################
+# Versões
+###############################################################################
+
+versions:
+  k3s: "v1.36.5+k3s1"
+  harbor: "2.13.2"
+  oracle: "19c"
+
+###############################################################################
+# K3S
+###############################################################################
+
+k3s:
+  api_port: 6443
+
+  cluster_cidr: 10.42.0.0/16
+  service_cidr: 10.43.0.0/16
+
+  config_dir: /etc/rancher/k3s
+
+###############################################################################
+# Storage
+###############################################################################
+
+storage:
+  root: /opt/lab/storage
+
+  storage_class: local-storage
+
+  reclaim_policy: Retain
+
+###############################################################################
+# Harbor
+###############################################################################
+
+harbor:
+  namespace: harbor
+
+  hostname: registry.lab
+
+  registry: registry.lab:5000
+
+  storage_class: local-storage
+
+  data_dir: /opt/lab/storage/harbor
+
+  chart_version: "{{ versions.harbor }}"
+
+  admin_user: admin
+
+  admin_password: Harbor12345
+
+  tls_enabled: false
+
+  cert_dir: /etc/harbor/certs
+
+  tls_crt: /etc/harbor/certs/tls.crt
+
+  tls_key: /etc/harbor/certs/tls.key
+
+  helm_repository: https://helm.goharbor.io
+
+###############################################################################
+# Oracle
+###############################################################################
+
+oracle:
+  namespace: oracle
+
+  version: "{{ versions.oracle }}"
+
+  base: /u01
+
+  inventory: /u01/app/oraInventory
+
+  oracle_base: /u01/app/oracle
+
+  oracle_home: /u01/app/oracle/product/19c/dbhome_1
+
+###############################################################################
+# Monitoring
+###############################################################################
+
+monitoring:
+  namespace: monitoring
+
+  storage_class: local-storage
+
+  grafana_hostname: grafana.lab
+
+  prometheus_hostname: prometheus.lab
+
+  alertmanager_hostname: alertmanager.lab
+
+###############################################################################
+# Backup
+###############################################################################
+
+backup:
+  enabled: true
+
+  root: "{{ paths.backups }}"
+
+  retention_days: 30
+
+###############################################################################
+# Atualizações
+###############################################################################
+
+update:
+  auto_upgrade: false
+
+  auto_reboot: false
+
+###############################################################################
+# Kubernetes
+###############################################################################
+
+kubernetes:
+  ingress_class: traefik
+
+  storage_class: local-storage

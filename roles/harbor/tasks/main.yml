@@ -1,0 +1,29 @@
+---
+###############################################################################
+# Harbor
+# Role principal
+###############################################################################
+
+- name: Criar namespace
+  ansible.builtin.import_tasks: namespace.yml
+
+- name: Validar pré-requisitos
+  ansible.builtin.import_tasks: prerequisites.yml
+
+- name: Configurar Storage
+  ansible.builtin.import_tasks: persistence.yml
+
+- name: Instalar Harbor via Helm
+  ansible.builtin.import_tasks: helm.yml
+
+- name: Configurar Ingress
+  ansible.builtin.import_tasks: ingress.yml
+
+- name: Configurar Certificados
+  ansible.builtin.import_tasks: certificates.yml
+
+- name: Configurar Projetos e Usuários
+  ansible.builtin.import_tasks: users.yml
+
+- name: Validar instalação
+  ansible.builtin.import_tasks: validation.yml

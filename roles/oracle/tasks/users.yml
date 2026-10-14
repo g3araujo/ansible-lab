@@ -1,0 +1,59 @@
+---
+###############################################################################
+# Oracle User and Groups
+###############################################################################
+
+- name: Garantir grupo principal Oracle
+  ansible.builtin.group:
+    name: "{{ oracle.group }}"
+    state: present
+
+- name: Garantir grupo DBA
+  ansible.builtin.group:
+    name: "{{ oracle.dba_group }}"
+    state: present
+
+- name: Garantir usuário Oracle
+  ansible.builtin.user:
+    name: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    groups:
+      - "{{ oracle.dba_group }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+- name: Garantir .bash_profile
+  ansible.builtin.template:
+    src: oracle-bash_profile.j2
+    dest: "/home/{{ oracle.user }}/.bash_profile"
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0644"
+
+- name: Garantir diretório .ssh
+  ansible.builtin.file:
+    path: "/home/{{ oracle.user }}/.ssh"
+    state: directory
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0700"
+
+- name: Garantir authorized_keys
+  ansible.builtin.file:
+    path: "/home/{{ oracle.user }}/.ssh/authorized_keys"
+    state: touch
+    owner: "{{ oracle.user }}"
+    group: "{{ oracle.group }}"
+    mode: "0600"
+
+- name: Validar usuário Oracle
+  ansible.builtin.command:
+    cmd: "id {{ oracle.user }}"
+  register: oracle_user
+  changed_when: false
+
+- name: Exibir usuário Oracle
+  ansible.builtin.debug:
+    var: oracle_user.stdout_lines

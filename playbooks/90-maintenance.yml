@@ -1,0 +1,46 @@
+---
+- name: Protecoes basicas dos nodes
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Garantir swappiness baixa
+      ansible.posix.sysctl:
+        name: vm.swappiness
+        value: "10"
+        state: present
+        sysctl_set: true
+        reload: true
+
+    - name: Instalar ferramentas de diagnostico
+      ansible.builtin.apt:
+        name:
+          - sysstat
+          - procps
+          - lsof
+        state: present
+        update_cache: true
+
+    - name: Garantir journald persistente
+      ansible.builtin.file:
+        path: /var/log/journal
+        state: directory
+        owner: root
+        group: systemd-journal
+        mode: "2755"
+
+    - name: Ativar sysstat
+      ansible.builtin.service:
+        name: sysstat
+        enabled: true
+        state: started
+
+    - name: Mostrar memoria atual
+      ansible.builtin.command: free -h
+      register: mem
+      changed_when: false
+
+    - name: Resultado
+      ansible.builtin.debug:
+        var: mem.stdout_lines

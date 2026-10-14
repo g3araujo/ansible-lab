@@ -1,0 +1,119 @@
+---
+###############################################################################
+# Harbor Validation
+###############################################################################
+
+- name: Verificar namespace Harbor
+  ansible.builtin.command:
+    cmd: kubectl get namespace {{ harbor_namespace }}
+  register: harbor_namespace_validation
+  changed_when: false
+
+- name: Exibir namespace
+  ansible.builtin.debug:
+    var: harbor_namespace_validation.stdout_lines
+
+- name: Verificar Pods
+  ansible.builtin.command:
+    cmd: kubectl get pods -n {{ harbor_namespace }} -o wide
+  register: harbor_pods
+  changed_when: false
+
+- name: Exibir Pods
+  ansible.builtin.debug:
+    var: harbor_pods.stdout_lines
+
+- name: Validar Pods em execução
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Ready pod --all -n {{ harbor_namespace }} --timeout=600s
+  register: harbor_wait
+  changed_when: false
+
+- name: Exibir resultado da validação dos Pods
+  ansible.builtin.debug:
+    var: harbor_wait.stdout_lines
+
+- name: Verificar Deployments
+  ansible.builtin.command:
+    cmd: kubectl get deploy -n {{ harbor_namespace }}
+  register: harbor_deployments
+  changed_when: false
+
+- name: Exibir Deployments
+  ansible.builtin.debug:
+    var: harbor_deployments.stdout_lines
+
+- name: Verificar Services
+  ansible.builtin.command:
+    cmd: kubectl get svc -n {{ harbor_namespace }}
+  register: harbor_services
+  changed_when: false
+
+- name: Exibir Services
+  ansible.builtin.debug:
+    var: harbor_services.stdout_lines
+
+- name: Verificar PVCs
+  ansible.builtin.command:
+    cmd: kubectl get pvc -n {{ harbor_namespace }}
+  register: harbor_pvc
+  changed_when: false
+
+- name: Exibir PVCs
+  ansible.builtin.debug:
+    var: harbor_pvc.stdout_lines
+
+- name: Verificar Ingress
+  ansible.builtin.command:
+    cmd: kubectl get ingress -n {{ harbor_namespace }}
+  register: harbor_ingress
+  changed_when: false
+  failed_when: false
+
+- name: Exibir Ingress
+  ansible.builtin.debug:
+    var: harbor_ingress.stdout_lines
+
+- name: Validar acesso HTTPS
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}"
+    method: GET
+    validate_certs: false
+    status_code:
+      - 200
+      - 302
+      - 401
+    timeout: 10
+  register: harbor_https
+  failed_when: false
+  changed_when: false
+
+- name: Exibir resposta HTTPS
+  ansible.builtin.debug:
+    msg: "Harbor respondeu com HTTP {{ harbor_https.status | default('indisponível') }}"
+
+- name: Consultar versão do Harbor
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}/api/v2.0/systeminfo"
+    method: GET
+    validate_certs: false
+    status_code:
+      - 200
+      - 401
+    timeout: 10
+  register: harbor_systeminfo
+  failed_when: false
+  changed_when: false
+
+- name: Exibir informações do Harbor
+  ansible.builtin.debug:
+    var: harbor_systeminfo.json
+  when: harbor_systeminfo.json is defined
+
+- name: Resumo da validação
+  ansible.builtin.debug:
+    msg:
+      - "Namespace : {{ harbor_namespace }}"
+      - "Hostname  : {{ harbor_hostname }}"
+      - "HTTPS     : {{ harbor_https.status | default('N/A') }}"
+      - "Validação concluída."

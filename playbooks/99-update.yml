@@ -1,0 +1,39 @@
+---
+###############################################################################
+# Atualização do laboratório
+###############################################################################
+
+- name: Atualizar hosts do laboratório
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    - name: Atualizar cache do apt
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Atualizar pacotes
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: Remover dependências antigas
+      ansible.builtin.apt:
+        autoremove: true
+        autoclean: true
+
+    - name: Verificar necessidade de reboot
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Informar necessidade de reboot
+      ansible.builtin.debug:
+        msg: "Reboot necessário."
+      when: reboot_required.stat.exists
+
+    - name: Informar conclusão
+      ansible.builtin.debug:
+        msg: "Atualização concluída."

@@ -1,0 +1,94 @@
+---
+###############################################################################
+# Oracle Prerequisites
+###############################################################################
+
+- name: Instalar dependências Oracle
+  ansible.builtin.apt:
+    name:
+      - bc
+      - binutils
+      - unzip
+      - zip
+      - gcc
+      - g++
+      - make
+      - libc6
+      - libc6-dev
+      - libaio1t64
+      - libaio-dev
+      - libgcc-s1
+      - libstdc++6
+      - libnsl-dev
+      - libx11-6
+      - libxrender1
+      - libxtst6
+      - libxi6
+      - ksh
+      - rlwrap
+      - sysstat
+      - lsof
+      - net-tools
+    state: present
+    update_cache: true
+
+- name: Desabilitar Transparent Huge Pages
+  ansible.builtin.shell: |
+    if [ -f /sys/kernel/mm/transparent_hugepage/enabled ]; then
+      echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+
+- name: Garantir parâmetros do kernel
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { name: "fs.aio-max-nr", value: "1048576" }
+    - { name: "fs.file-max", value: "6815744" }
+    - { name: "kernel.shmmax", value: "8589934592" }
+    - { name: "kernel.shmall", value: "2097152" }
+    - { name: "kernel.sem", value: "250 32000 100 128" }
+    - { name: "net.ipv4.ip_local_port_range", value: "9000 65500" }
+    - { name: "net.core.rmem_default", value: "262144" }
+    - { name: "net.core.rmem_max", value: "4194304" }
+    - { name: "net.core.wmem_default", value: "262144" }
+    - { name: "net.core.wmem_max", value: "1048576" }
+
+- name: Garantir limits.conf
+  ansible.builtin.blockinfile:
+    path: /etc/security/limits.conf
+    marker: "# {mark} ANSIBLE ORACLE"
+    block: |
+      {{ oracle.user }} soft nofile 1024
+      {{ oracle.user }} hard nofile 65536
+      {{ oracle.user }} soft nproc 2047
+      {{ oracle.user }} hard nproc 16384
+      {{ oracle.user }} soft stack 10240
+      {{ oracle.user }} hard stack 32768
+
+- name: Garantir pam_limits
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session required pam_limits.so"
+    state: present
+
+- name: Validar memória disponível
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= 4096
+    fail_msg: "Oracle requer pelo menos 4 GB de memória."
+
+- name: Validar espaço disponível
+  ansible.builtin.command: df -BG "{{ oracle.data_dir }}"
+  register: oracle_disk
+  changed_when: false
+
+- name: Exibir utilização do disco
+  ansible.builtin.debug:
+    var: oracle_disk.stdout_lines

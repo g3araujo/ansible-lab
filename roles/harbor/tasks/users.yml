@@ -1,0 +1,68 @@
+---
+###############################################################################
+# Harbor Users / Projects
+###############################################################################
+
+- name: Aguardar Harbor ficar disponível
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}/api/v2.0/systeminfo"
+    method: GET
+    validate_certs: false
+    status_code:
+      - 200
+      - 401
+    timeout: 10
+  register: harbor_api
+  retries: 30
+  delay: 10
+  until: harbor_api.status in [200, 401]
+  changed_when: false
+
+- name: Verificar login do administrador
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}/api/v2.0/projects"
+    method: GET
+    user: "{{ harbor_admin_user }}"
+    password: "{{ harbor_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: harbor_projects
+  changed_when: false
+
+- name: Exibir projetos existentes
+  ansible.builtin.debug:
+    var: harbor_projects.json
+
+- name: Criar projeto library (caso não exista)
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}/api/v2.0/projects"
+    method: POST
+    user: "{{ harbor_admin_user }}"
+    password: "{{ harbor_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      project_name: library
+      public: true
+    status_code:
+      - 201
+      - 409
+  changed_when: false
+
+- name: Validar acesso ao projeto library
+  ansible.builtin.uri:
+    url: "https://{{ harbor_hostname }}/api/v2.0/projects/library"
+    method: GET
+    user: "{{ harbor_admin_user }}"
+    password: "{{ harbor_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: harbor_library
+  changed_when: false
+
+- name: Exibir informações do projeto library
+  ansible.builtin.debug:
+    var: harbor_library.json

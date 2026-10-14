@@ -1,0 +1,201 @@
+---
+###############################################################################
+# Oracle Validation
+###############################################################################
+
+- name: Verificar ORACLE_HOME
+  ansible.builtin.stat:
+    path: "{{ oracle.home }}"
+  register: oracle_home
+
+- name: Validar ORACLE_HOME
+  ansible.builtin.assert:
+    that:
+      - oracle_home.stat.exists
+    fail_msg: "ORACLE_HOME não encontrado."
+
+###############################################################################
+# Validar sqlplus
+###############################################################################
+
+- name: Verificar sqlplus
+  ansible.builtin.stat:
+    path: "{{ oracle.home }}/bin/sqlplus"
+  register: sqlplus_bin
+
+- name: Validar sqlplus
+  ansible.builtin.assert:
+    that:
+      - sqlplus_bin.stat.exists
+    fail_msg: "sqlplus não encontrado."
+
+###############################################################################
+# Listener
+###############################################################################
+
+- name: Consultar Listener
+  ansible.builtin.shell: |
+    set -o pipefail
+    source /home/{{ oracle.user }}/.bash_profile
+    lsnrctl status {{ oracle.listener.name }}
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: listener_status
+  changed_when: false
+  failed_when: false
+
+- name: Exibir Listener
+  ansible.builtin.debug:
+    var: listener_status.stdout_lines
+
+###############################################################################
+# Instância
+###############################################################################
+
+- name: Consultar instância
+  ansible.builtin.shell: |
+    set -o pipefail
+    source /home/{{ oracle.user }}/.bash_profile
+    sqlplus -s / as sysdba <<EOF
+    set heading off
+    set feedback off
+    set pages 0
+    select instance_name||'|'||status||'|'||database_status from v\$instance;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: instance_status
+  changed_when: false
+  failed_when: false
+
+- name: Exibir instância
+  ansible.builtin.debug:
+    var: instance_status.stdout_lines
+
+###############################################################################
+# Banco
+###############################################################################
+
+- name: Consultar banco
+  ansible.builtin.shell: |
+    set -o pipefail
+    source /home/{{ oracle.user }}/.bash_profile
+    sqlplus -s / as sysdba <<EOF
+    set heading off
+    set feedback off
+    set pages 0
+    select name||'|'||open_mode from v\$database;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: database_status
+  changed_when: false
+  failed_when: false
+
+- name: Exibir banco
+  ansible.builtin.debug:
+    var: database_status.stdout_lines
+
+###############################################################################
+# PDBs
+###############################################################################
+
+- name: Consultar PDBs
+  ansible.builtin.shell: |
+    set -o pipefail
+    source /home/{{ oracle.user }}/.bash_profile
+    sqlplus -s / as sysdba <<EOF
+    set lines 200
+    col name format a30
+    select name, open_mode
+      from v\$pdbs
+      order by name;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: pdbs
+  changed_when: false
+  failed_when: false
+
+- name: Exibir PDBs
+  ansible.builtin.debug:
+    var: pdbs.stdout_lines
+
+###############################################################################
+# Tablespaces
+###############################################################################
+
+- name: Consultar Tablespaces
+  ansible.builtin.shell: |
+    set -o pipefail
+    source /home/{{ oracle.user }}/.bash_profile
+    sqlplus -s / as sysdba <<EOF
+    set lines 200
+    col tablespace_name format a30
+    select tablespace_name,
+           status
+      from dba_tablespaces
+     order by tablespace_name;
+    exit
+    EOF
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ oracle.user }}"
+  register: tablespaces
+  changed_when: false
+  failed_when: false
+
+- name: Exibir Tablespaces
+  ansible.builtin.debug:
+    var: tablespaces.stdout_lines
+
+###############################################################################
+# Listener Port
+###############################################################################
+
+- name: Validar porta do Listener
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ oracle.listener.port }}"
+    timeout: 10
+
+###############################################################################
+# RMAN
+###############################################################################
+
+- name: Verificar RMAN
+  ansible.builtin.stat:
+    path: "{{ oracle.home }}/bin/rman"
+  register: rman_bin
+
+- name: Validar RMAN
+  ansible.builtin.assert:
+    that:
+      - rman_bin.stat.exists
+    fail_msg: "RMAN não encontrado."
+
+###############################################################################
+# Espaço em disco
+###############################################################################
+
+- name: Verificar utilização do storage Oracle
+  ansible.builtin.command:
+    cmd: df -h "{{ oracle.data_dir }}"
+  register: oracle_disk
+  changed_when: false
+
+- name: Exibir utilização do storage
+  ansible.builtin.debug:
+    var: oracle_disk.stdout_lines

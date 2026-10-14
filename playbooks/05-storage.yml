@@ -1,0 +1,63 @@
+---
+- name: Preparar workers para K3s
+  hosts: k3s_workers
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    - name: Instalar dependências
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+        update_cache: true
+
+    - name: Desativar swap no fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^(\s*/swap\.img\s+\S+\s+swap\s+.*)$'
+        replace: '# k3s: \1'
+
+    - name: Desativar swap agora
+      ansible.builtin.command:
+        cmd: swapoff -a
+      register: swapoff_result
+      changed_when: swapoff_result.rc == 0
+      when: ansible_facts.swaptotal_mb | int > 0
+
+    - name: Criar diretório do K3s
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configurar registry antes do primeiro start
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/registries.yaml
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          mirrors:
+            "192.168.0.115:5000":
+              endpoint:
+                - "http://192.168.0.115:5000"
+
+    - name: Configurar taints e labels do nó
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          node-taint:
+            - "lab.matera/standin=true:NoSchedule"
+            - "lab.lifecycle/hold=true:NoSchedule"
+          {% if inventory_hostname == "k3s-lab-02" %}
+          node-label:
+            - "workload=heavy"
+          {% endif %}

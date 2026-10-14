@@ -1,0 +1,91 @@
+---
+###############################################################################
+# SSH
+###############################################################################
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+###############################################################################
+# Chrony
+###############################################################################
+
+- name: Restart Chrony
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+  failed_when: false
+
+- name: Restart Chronyd
+  ansible.builtin.service:
+    name: chronyd
+    state: restarted
+  failed_when: false
+
+###############################################################################
+# Sysctl
+###############################################################################
+
+- name: Reload Sysctl
+  ansible.builtin.command: sysctl --system
+  changed_when: true
+
+###############################################################################
+# Kernel Modules
+###############################################################################
+
+- name: Load Overlay Module
+  community.general.modprobe:
+    name: overlay
+    state: present
+
+- name: Load BR Netfilter Module
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+
+###############################################################################
+# Initramfs
+###############################################################################
+
+- name: Update Initramfs
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# GRUB
+###############################################################################
+
+- name: Update GRUB
+  ansible.builtin.command: update-grub
+  changed_when: true
+  failed_when: false
+
+###############################################################################
+# Reboot
+###############################################################################
+
+- name: Reboot Host
+  ansible.builtin.reboot:
+    msg: "Reboot solicitado pelo Ansible"
+    reboot_timeout: 900
+  when: common_auto_reboot | default(false)
+
+###############################################################################
+# K3S
+###############################################################################
+
+- name: Restart K3s
+  ansible.builtin.service:
+    name: k3s
+    state: restarted
+  failed_when: false
+
+- name: Restart K3s Agent
+  ansible.builtin.service:
+    name: k3s-agent
+    state: restarted
+  failed_when: false

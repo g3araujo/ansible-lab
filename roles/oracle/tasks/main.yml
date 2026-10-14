@@ -1,0 +1,24 @@
+---
+###############################################################################
+# Oracle Role
+###############################################################################
+
+- name: Preparar diretórios
+  ansible.builtin.import_tasks: directories.yml
+
+- name: Instalar Oracle
+  ansible.builtin.import_tasks: install.yml
+  when: oracle.install_mode == "install"
+
+- name: Configurar Listener
+  ansible.builtin.import_tasks: listener.yml
+
+- name: Configurar Banco de Dados
+  ansible.builtin.import_tasks: database.yml
+
+- name: Executar Backup
+  ansible.builtin.import_tasks: backup.yml
+  when: oracle.backup.enabled | bool
+
+- name: Validar Oracle
+  ansible.builtin.import_tasks: validation.yml

@@ -1,0 +1,106 @@
+---
+- name: Baseline dos servidores do laboratório
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    packages:
+      - curl
+      - wget
+      - git
+      - vim
+      - nano
+      - jq
+      - unzip
+      - zip
+      - htop
+      - iotop
+      - iftop
+      - tree
+      - dnsutils
+      - net-tools
+      - nfs-common
+      - open-iscsi
+      - smartmontools
+      - nvme-cli
+      - chrony
+
+    lab_directories:
+      - /opt/lab
+      - /opt/lab/scripts
+      - /opt/lab/backups
+      - /opt/lab/manifests
+
+  tasks:
+
+    - name: Atualizar cache APT
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Atualizar pacotes
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: Instalar pacotes básicos
+      ansible.builtin.apt:
+        name: "{{ packages }}"
+        state: present
+
+    - name: Configurar timezone
+      community.general.timezone:
+        name: America/Sao_Paulo
+
+    - name: Habilitar chrony
+      ansible.builtin.service:
+        name: chrony
+        enabled: true
+        state: started
+
+    - name: Desabilitar swap imediatamente
+      ansible.builtin.command: swapoff -a
+      when: ansible_swaptotal_mb | int > 0
+      changed_when: false
+
+    - name: Remover swap do fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\sswap\s.*)$'
+        replace: '# \1'
+
+    - name: Criar diretórios padrão
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop: "{{ lab_directories }}"
+
+    - name: Configurar vm.max_map_count
+      ansible.posix.sysctl:
+        name: vm.max_map_count
+        value: "262144"
+        state: present
+        reload: true
+
+    - name: Configurar fs.inotify.max_user_watches
+      ansible.posix.sysctl:
+        name: fs.inotify.max_user_watches
+        value: "524288"
+        state: present
+        reload: true
+
+    - name: Configurar fs.inotify.max_user_instances
+      ansible.posix.sysctl:
+        name: fs.inotify.max_user_instances
+        value: "512"
+        state: present
+        reload: true
+
+    - name: Garantir SSH habilitado
+      ansible.builtin.service:
+        name: ssh
+        enabled: true
+        state: started
